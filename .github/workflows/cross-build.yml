@@ -1,0 +1,97 @@
+name: Cross-platform Build
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: x86_64-unknown-linux-musl
+          override: true
+      - name: Build
+        run: |
+          cargo build --release --target x86_64-unknown-linux-musl -p vnt-cli -p vn-link-cli
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: linux-x86_64
+          path: |
+            target/x86_64-unknown-linux-musl/release/vnt-cli
+            target/x86_64-unknown-linux-musl/release/vn-link-cli
+
+  build-linux-arm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: aarch64-unknown-linux-musl
+          override: true
+      - name: Install cross-compilation tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+      - name: Build
+        run: |
+          cargo build --release --target aarch64-unknown-linux-musl -p vnt-cli -p vn-link-cli
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: linux-arm64
+          path: |
+            target/aarch64-unknown-linux-musl/release/vnt-cli
+            target/aarch64-unknown-linux-musl/release/vn-link-cli
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: x86_64-pc-windows-msvc
+          override: true
+      - name: Build
+        run: |
+          cargo build --release -p vnt-cli -p vn-link-cli
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: windows-x86_64
+          path: |
+            target/release/vnt-cli.exe
+            target/release/vn-link-cli.exe
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: x86_64-apple-darwin
+          override: true
+      - name: Build
+        run: |
+          cargo build --release -p vnt-cli -p vn-link-cli
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: macos-x86_64
+          path: |
+            target/release/vnt-cli
+            target/release/vn-link-cli
