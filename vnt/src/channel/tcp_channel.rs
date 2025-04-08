@@ -34,35 +34,60 @@ where
         let _ = stop_sender.send(());
     })?;
     let bind_port = tcp_server.local_addr()?.port();
-    let runtime = tokio::runtime::Builder::new_multi_thread()
-        .worker_threads(2)
-        .enable_all()
-        .build()
-        .context("tcp tokio runtime build failed")?;
-    thread::Builder::new()
-        .name("tcpChannel".into())
-        .spawn(move || {
-            runtime.spawn(async move {
-                {
-                    let recv_handler = recv_handler.clone();
-                    let context = context.clone();
-                    tokio::spawn(async move {
-                        if let Err(e) = tcp_accept(tcp_server, recv_handler, context).await {
-                            log::warn!("tcp_listen {:?}", e);
-                        }
-                    });
-                }
-                tokio::spawn(async move {
-                    connect_tcp_handle(receiver, recv_handler, context, bind_port).await
-                });
-            });
-            runtime.block_on(async {
-                let _ = stop_receiver.await;
-            });
-            runtime.shutdown_background();
+
+    // Check if we're already in a Tokio runtime
+    if tokio::runtime::Handle::try_current().is_ok() {
+        // We're already in a Tokio runtime, so we can just spawn tasks
+        let recv_handler_clone = recv_handler.clone();
+        let context_clone = context.clone();
+
+        tokio::spawn(async move {
+            if let Err(e) = tcp_accept(tcp_server, recv_handler_clone, context_clone).await {
+                log::warn!("tcp_listen {:?}", e);
+            }
+        });
+
+        tokio::spawn(async move {
+            connect_tcp_handle(receiver, recv_handler, context, bind_port).await
+        });
+
+        tokio::spawn(async move {
+            let _ = stop_receiver.await;
             worker.stop_all();
-        })
-        .context("tcp thread build failed")?;
+        });
+    } else {
+        // We're not in a Tokio runtime, so we need to create one
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .enable_all()
+            .build()
+            .context("tcp tokio runtime build failed")?;
+
+        thread::Builder::new()
+            .name("tcpChannel".into())
+            .spawn(move || {
+                runtime.spawn(async move {
+                    {
+                        let recv_handler = recv_handler.clone();
+                        let context = context.clone();
+                        tokio::spawn(async move {
+                            if let Err(e) = tcp_accept(tcp_server, recv_handler, context).await {
+                                log::warn!("tcp_listen {:?}", e);
+                            }
+                        });
+                    }
+                    tokio::spawn(async move {
+                        connect_tcp_handle(receiver, recv_handler, context, bind_port).await
+                    });
+                });
+                runtime.block_on(async {
+                    let _ = stop_receiver.await;
+                });
+                runtime.shutdown_background();
+                worker.stop_all();
+            })
+            .context("tcp thread build failed")?;
+    }
     Ok(())
 }
 

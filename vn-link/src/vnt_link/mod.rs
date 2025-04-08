@@ -14,6 +14,8 @@ use lwip_rs::tcp_listener::TcpListener as LwIPTcpListener;
 use lwip_rs::udp::{UdpSocket as LwIpUdpSocket, UdpSocketWrite};
 use vnt::channel::BUFFER_SIZE;
 use vnt::core::{Config, Vnt};
+#[cfg(feature = "integrated_tun")]
+use vnt::tun_create_helper::DeviceAdapter;
 use vnt::packet::ip::ipv4::packet::IpV4Packet;
 use vnt::protocol::HEAD_LEN;
 use vnt::vnt_device::DeviceWrite;
@@ -48,11 +50,11 @@ impl VnLink {
         let (shutdown_tx, shutdown_rx) = channel(false);
         let (net_stack_write, mut net_stack_read) = stack.into_split();
         // We need to use a different approach since VntInner is not public
-        // Let's use the Vnt::new function directly
+        // Let's use the appropriate Vnt constructor based on the feature flag
         #[cfg(feature = "integrated_tun")]
         let vnt_instance = Vnt::new(vnt_config, callback)?;
         #[cfg(not(feature = "integrated_tun"))]
-        let vnt_instance = Vnt::new_device(vnt_config, callback, VntDevice { net_stack_write })?;
+        let vnt_instance = Vnt::new_device(vnt_config, callback, VntDevice { net_stack_write: net_stack_write.clone() })?;
         let shutdown_tx_ = shutdown_tx.clone();
         let w = vnt_instance.add_stop_listener("vnt-link".into(), move || {
             let _ = shutdown_tx_.send(true);
@@ -221,9 +223,9 @@ impl DeviceWrite for VntDevice {
     }
 
     #[cfg(feature = "integrated_tun")]
-    fn into_device_adapter(self) -> vnt::tun_create_helper::DeviceAdapter {
+    fn into_device_adapter(self) -> DeviceAdapter {
         // This should never be called for VntDevice
         // We're returning a default DeviceAdapter which is what the vnt crate expects
-        vnt::tun_create_helper::DeviceAdapter::default()
+        DeviceAdapter::default()
     }
 }

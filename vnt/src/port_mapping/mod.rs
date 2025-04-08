@@ -66,24 +66,46 @@ pub fn start_port_mapping(
     if vec.is_empty() {
         return Ok(());
     }
-    let runtime = tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .thread_name("portMapping")
-        .build()?;
-    runtime.block_on(start_port_mapping0(vec))?;
-    let (sender, receiver) = tokio::sync::oneshot::channel::<()>();
-    let worker = stop_manager.add_listener("portMapping".into(), move || {
-        let _ = sender.send(());
-    })?;
-    thread::Builder::new()
-        .name("portMapping".into())
-        .spawn(move || {
-            runtime.block_on(async {
-                let _ = receiver.await;
-            });
-            runtime.shutdown_background();
-            drop(worker);
+
+    // Check if we're already in a Tokio runtime
+    if tokio::runtime::Handle::try_current().is_ok() {
+        // We're already in a Tokio runtime, so we can just spawn a task
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(start_port_mapping0(vec))
         })?;
+
+        let (sender, receiver) = tokio::sync::oneshot::channel::<()>();
+        let worker = stop_manager.add_listener("portMapping".into(), move || {
+            let _ = sender.send(());
+        })?;
+
+        tokio::spawn(async move {
+            let _ = receiver.await;
+            drop(worker);
+        });
+    } else {
+        // We're not in a Tokio runtime, so we need to create one
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .thread_name("portMapping")
+            .build()?;
+
+        runtime.block_on(start_port_mapping0(vec))?;
+        let (sender, receiver) = tokio::sync::oneshot::channel::<()>();
+        let worker = stop_manager.add_listener("portMapping".into(), move || {
+            let _ = sender.send(());
+        })?;
+
+        thread::Builder::new()
+            .name("portMapping".into())
+            .spawn(move || {
+                runtime.block_on(async {
+                    let _ = receiver.await;
+                });
+                runtime.shutdown_background();
+                drop(worker);
+            })?;
+    }
 
     Ok(())
 }

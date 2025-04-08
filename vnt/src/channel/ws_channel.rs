@@ -32,22 +32,40 @@ where
     let worker = stop_manager.add_listener("wsChannel".into(), move || {
         let _ = stop_sender.send(());
     })?;
-    let runtime = tokio::runtime::Builder::new_multi_thread()
-        .worker_threads(2)
-        .enable_all()
-        .build()
-        .context("ws tokio runtime build failed")?;
-    thread::Builder::new()
-        .name("wsChannel".into())
-        .spawn(move || {
-            runtime.spawn(async move { connect_ws_handle(receiver, recv_handler, context).await });
-            runtime.block_on(async {
-                let _ = stop_receiver.await;
-            });
-            runtime.shutdown_background();
+
+    // Check if we're already in a Tokio runtime
+    if tokio::runtime::Handle::try_current().is_ok() {
+        // We're already in a Tokio runtime, so we can just spawn tasks
+        tokio::spawn(async move {
+            connect_ws_handle(receiver, recv_handler, context).await
+        });
+
+        tokio::spawn(async move {
+            let _ = stop_receiver.await;
             worker.stop_all();
-        })
-        .context("ws thread build failed")?;
+        });
+    } else {
+        // We're not in a Tokio runtime, so we need to create one
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .enable_all()
+            .build()
+            .context("ws tokio runtime build failed")?;
+
+        thread::Builder::new()
+            .name("wsChannel".into())
+            .spawn(move || {
+                runtime.spawn(async move {
+                    connect_ws_handle(receiver, recv_handler, context).await
+                });
+                runtime.block_on(async {
+                    let _ = stop_receiver.await;
+                });
+                runtime.shutdown_background();
+                worker.stop_all();
+            })
+            .context("ws thread build failed")?;
+    }
     Ok(())
 }
 

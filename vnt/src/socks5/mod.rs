@@ -35,17 +35,22 @@ pub fn start_socks5_server(
                 Ok(listener) => {
                     if enable_logging {
                         log::info!("SOCKS5 server listening on {}", bind_addr);
+                        println!("[SOCKS5] Server listening on {}", bind_addr);
                     }
                     listener
                 },
                 Err(e) => {
                     log::error!("Failed to bind SOCKS5 server to {}: {:?}", bind_addr, e);
+                    println!("[SOCKS5] Failed to bind server to {}: {:?}", bind_addr, e);
                     return;
                 }
             };
 
             if let Err(e) = run_socks5_server_with_listener(listener, enable_logging, receiver).await {
                 log::error!("SOCKS5 server error: {:?}", e);
+                if enable_logging {
+                    println!("[SOCKS5] Server error: {:?}", e);
+                }
             }
             drop(worker);
         });
@@ -76,12 +81,16 @@ pub fn start_socks5_server(
                         },
                         Err(e) => {
                             log::error!("Failed to bind SOCKS5 server to {}: {:?}", bind_addr, e);
+                            println!("[SOCKS5] Failed to bind server to {}: {:?}", bind_addr, e);
                             return;
                         }
                     };
 
                     if let Err(e) = run_socks5_server_with_listener(listener, enable_logging, receiver).await {
                         log::error!("SOCKS5 server error: {:?}", e);
+                        if enable_logging {
+                            println!("[SOCKS5] Server error: {:?}", e);
+                        }
                     }
                 });
                 runtime.shutdown_background();
@@ -104,6 +113,7 @@ async fn run_socks5_server_with_listener(
                     Ok((stream, addr)) => {
                         if enable_logging {
                             log::info!("SOCKS5: New connection from {}", addr);
+                            println!("[SOCKS5] New connection from {}", addr);
                         }
 
                         let enable_logging = enable_logging.clone();
@@ -111,18 +121,23 @@ async fn run_socks5_server_with_listener(
                             if let Err(e) = handle_client(stream, addr, enable_logging).await {
                                 if enable_logging {
                                     log::warn!("SOCKS5: Error handling client {}: {:?}", addr, e);
+                                    println!("[SOCKS5] Error handling client {}: {:?}", addr, e);
                                 }
                             }
                         });
                     }
                     Err(e) => {
                         log::error!("SOCKS5: Accept error: {:?}", e);
+                        if enable_logging {
+                            println!("[SOCKS5] Accept error: {:?}", e);
+                        }
                     }
                 }
             }
             _ = &mut shutdown_signal => {
                 if enable_logging {
                     log::info!("SOCKS5: Server shutting down");
+                    println!("[SOCKS5] Server shutting down");
                 }
                 break;
             }
@@ -154,7 +169,15 @@ pub async fn handle_client(
 
     // Check SOCKS version
     if buf[0] != SOCKS_VERSION {
-        return Err(anyhow::anyhow!("Unsupported SOCKS version: {}", buf[0]));
+        let err_msg = format!("Unsupported SOCKS version: {}", buf[0]);
+        if enable_logging {
+            println!("[SOCKS5] {}", err_msg);
+        }
+        return Err(anyhow::anyhow!(err_msg));
+    }
+
+    if enable_logging {
+        println!("[SOCKS5] Client {} connected with SOCKS5 protocol", client_addr);
     }
 
     // Check authentication methods
@@ -166,7 +189,15 @@ pub async fn handle_client(
     if !methods.contains(&NO_AUTH) {
         // No acceptable auth methods
         stream.write_all(&[SOCKS_VERSION, AUTH_METHOD_NOT_ACCEPTABLE]).await?;
-        return Err(anyhow::anyhow!("No supported authentication methods"));
+        let err_msg = "No supported authentication methods";
+        if enable_logging {
+            println!("[SOCKS5] {}", err_msg);
+        }
+        return Err(anyhow::anyhow!(err_msg));
+    }
+
+    if enable_logging {
+        println!("[SOCKS5] Client {} using NO_AUTH method", client_addr);
     }
 
     // Send auth method choice (NO_AUTH)
@@ -178,7 +209,11 @@ pub async fn handle_client(
 
     // Check SOCKS version again
     if header[0] != SOCKS_VERSION {
-        return Err(anyhow::anyhow!("Unexpected SOCKS version: {}", header[0]));
+        let err_msg = format!("Unexpected SOCKS version: {}", header[0]);
+        if enable_logging {
+            println!("[SOCKS5] {}", err_msg);
+        }
+        return Err(anyhow::anyhow!(err_msg));
     }
 
     // Check command
@@ -187,7 +222,15 @@ pub async fn handle_client(
         // We only support CONNECT for now
         let mut response = [SOCKS_VERSION, COMMAND_NOT_SUPPORTED, 0, IPV4_ADDRESS, 0, 0, 0, 0, 0, 0];
         stream.write_all(&response).await?;
-        return Err(anyhow::anyhow!("Unsupported command: {}", cmd));
+        let err_msg = format!("Unsupported command: {}", cmd);
+        if enable_logging {
+            println!("[SOCKS5] {}", err_msg);
+        }
+        return Err(anyhow::anyhow!(err_msg));
+    }
+
+    if enable_logging {
+        println!("[SOCKS5] Client {} using CONNECT command", client_addr);
     }
 
     // Parse address type
@@ -241,12 +284,17 @@ pub async fn handle_client(
             // Unsupported address type
             let mut response = [SOCKS_VERSION, ADDRESS_TYPE_NOT_SUPPORTED, 0, IPV4_ADDRESS, 0, 0, 0, 0, 0, 0];
             stream.write_all(&response).await?;
-            return Err(anyhow::anyhow!("Unsupported address type: {}", addr_type));
+            let err_msg = format!("Unsupported address type: {}", addr_type);
+            if enable_logging {
+                println!("[SOCKS5] {}", err_msg);
+            }
+            return Err(anyhow::anyhow!(err_msg));
         }
     };
 
     if enable_logging {
         log::info!("SOCKS5: Connection request from {} to {}", client_addr, target_addr);
+        println!("[SOCKS5] Connection request from {} to {}", client_addr, target_addr);
     }
 
     // 3. Connect to the target
@@ -262,6 +310,7 @@ pub async fn handle_client(
 
             if enable_logging {
                 log::info!("SOCKS5: Connection closed: {} -> {}", client_addr, target_addr);
+                println!("[SOCKS5] Connection closed: {} -> {}", client_addr, target_addr);
             }
 
             Ok(())
@@ -271,7 +320,12 @@ pub async fn handle_client(
             let response = [SOCKS_VERSION, HOST_UNREACHABLE, 0, IPV4_ADDRESS, 0, 0, 0, 0, 0, 0];
             stream.write_all(&response).await?;
 
-            Err(anyhow::anyhow!("Failed to connect to target: {}", e))
+            let err_msg = format!("Failed to connect to target: {}", e);
+            if enable_logging {
+                println!("[SOCKS5] {}", err_msg);
+            }
+
+            Err(anyhow::anyhow!(err_msg))
         }
     }
 }
@@ -296,6 +350,9 @@ fn create_response(status: u8, addr: &SocketAddr) -> Vec<u8> {
 }
 
 async fn proxy_data(mut client: TcpStream, mut target: TcpStream) -> anyhow::Result<()> {
+    // Get peer addresses for logging
+    let client_addr = client.peer_addr()?;
+    let target_addr = target.peer_addr()?;
     let (mut client_read, mut client_write) = client.split();
     let (mut target_read, mut target_write) = target.split();
 
@@ -305,12 +362,16 @@ async fn proxy_data(mut client: TcpStream, mut target: TcpStream) -> anyhow::Res
     tokio::select! {
         result = client_to_target => {
             if let Err(e) = result {
-                return Err(anyhow::anyhow!("Error copying client to target: {}", e));
+                let err_msg = format!("Error copying client {} to target {}: {}", client_addr, target_addr, e);
+                println!("[SOCKS5] {}", err_msg);
+                return Err(anyhow::anyhow!(err_msg));
             }
         }
         result = target_to_client => {
             if let Err(e) = result {
-                return Err(anyhow::anyhow!("Error copying target to client: {}", e));
+                let err_msg = format!("Error copying target {} to client {}: {}", target_addr, client_addr, e);
+                println!("[SOCKS5] {}", err_msg);
+                return Err(anyhow::anyhow!(err_msg));
             }
         }
     }

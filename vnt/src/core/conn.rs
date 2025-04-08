@@ -172,6 +172,9 @@ impl VntInner {
 
         // Initialize SOCKS5 server if enabled
         if config.enable_socks5 {
+            // 在命令行中显示 SOCKS5 启动信息
+            println!("[SOCKS5] Starting SOCKS5 server on port {}", config.socks5_port);
+
             crate::socks5::start_socks5_server(
                 stop_manager.clone(),
                 config.socks5_port,
@@ -180,6 +183,7 @@ impl VntInner {
 
             if config.socks5_logging {
                 log::info!("SOCKS5 server enabled on port {}", config.socks5_port);
+                println!("[SOCKS5] Logging enabled for SOCKS5 server");
             }
         }
         let mut ports = config.ports.as_ref().map_or(vec![0, 0], |v| {
