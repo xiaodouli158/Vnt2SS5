@@ -93,6 +93,7 @@ features说明
 | upnp              | upnp协议                         | 否    |
 | ws                | ws协议                           | 是    |
 | wss               | wss协议                          | 是    |
+| socks5            | SOCKS5代理服务                    | 是    |
 
 </details>
 
@@ -123,12 +124,14 @@ features说明
 - 多通道UDP应对QOS
 - 支持TCP、UDP、WebSocket等多种协议
 - 支持数据压缩
+- 内置SOCKS5代理服务
 
 ### 更多玩法
 
 1. 和远程桌面(如mstsc)搭配，超低延迟的体验
 2. 安装samba服务，共享磁盘
 3. 点对网,访问内网其他机器、IP代理(结合启动参数'-i'和'-o')
+4. 使用SOCKS5代理服务，实现全局代理上网(使用--ss5参数启用)
 
 ### Todo
 
@@ -186,30 +189,3 @@ vnt默认使用10.26.0.0/24网段，和本地网络适配器的ip冲突
 1. 命令行启动增加-d参数（使用配置文件启动则在配置文件中增加device_id参数），要保证每个设备的值都不一样，取值可以任意64位以内字符串
 
 </details>
-
-### 交流群
-
-对VNT有任何问题均可以加群联系作者
-
-QQ群1: 1034868233(满人)
-
-QQ群2: 950473757
-
-### 赞助
-
-如果VNT对你有帮助，欢迎打赏作者
-
- <img width="300" alt="" src="https://github.com/vnt-dev/vnt/assets/49143209/0d3a7311-43fc-4ed7-9507-863b5d69b6b2">
-
-### 其他
-
-可使用社区小伙伴搭建的中继服务器
-
-1. -s vnt.8443.eu.org:29871
-2. -s vnt.wherewego.top:29872
-
-### 参与贡献
-
-<a href="https://github.com/vnt-dev/vnt/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=vnt-dev/vnt" />
-</a>

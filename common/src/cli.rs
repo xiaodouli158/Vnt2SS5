@@ -390,6 +390,9 @@ fn get_description(key: &str, language: &str) -> String {
         ("--local-dev", ("本地出口网卡的名称", "name of local export network card")),
         ("--disable-stats", ("关闭流量统计", "Disable traffic statistics")),
         ("--allow-wg", ("允许接入WireGuard客户端", "Allow access to WireGuard client")),
+        ("--ss5", ("启用SOCKS5代理服务", "Enable SOCKS5 proxy service")),
+        ("--ss5port <port>", ("SOCKS5代理服务端口，默认为10080", "SOCKS5 proxy service port (default 10080)")),
+        ("--ss5log", ("显示SOCKS5代理服务的日志", "Display logs for SOCKS5 proxy service")),
         ("--list", ("后台运行时,查看其他设备列表", "View list of other devices when running in background")),
         ("--all", ("后台运行时,查看其他设备完整信息", "View complete information of other devices when running in background")),
         ("--info", ("后台运行时,查看当前设备信息", "View information of current device when running in background")),
@@ -584,6 +587,18 @@ fn print_usage(program: &str, _opts: Options) {
     println!(
         "  --allow-wg          {}",
         get_description("--allow-wg", &language)
+    );
+    println!(
+        "  --ss5              {}",
+        get_description("--ss5", &language)
+    );
+    println!(
+        "  --ss5port <port>   {}",
+        get_description("--ss5port <port>", &language)
+    );
+    println!(
+        "  --ss5log           {}",
+        get_description("--ss5log", &language)
     );
     println!();
     #[cfg(feature = "command")]
